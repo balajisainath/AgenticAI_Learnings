@@ -1,0 +1,373 @@
+.page-shell {
+  width: min(1220px, 100% - 2rem);
+  margin: 1.5rem auto 2.5rem;
+  display: grid;
+  gap: 1.25rem;
+}
+
+.hero-panel {
+  padding: 1.4rem 1.5rem;
+  border: 1px solid var(--stroke);
+  border-radius: 20px;
+  background: linear-gradient(135deg, #f4fff5 10%, #f7faf2 70%, #fffaf0 100%);
+  box-shadow: var(--shadow-soft);
+  animation: reveal-down 400ms ease;
+}
+
+.hero-kicker {
+  margin: 0;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--teal-700);
+  font-weight: 700;
+  font-size: 0.76rem;
+}
+
+.hero-panel h1 {
+  margin: 0.2rem 0 0.4rem;
+  font-family: "Fraunces", serif;
+  font-size: clamp(1.8rem, 2.3vw, 2.5rem);
+  color: var(--ink-900);
+}
+
+.hero-panel p {
+  margin: 0;
+  color: var(--ink-700);
+  max-width: 900px;
+}
+
+.layout-grid {
+  display: grid;
+  grid-template-columns: 360px minmax(0, 1fr);
+  gap: 1rem;
+}
+
+.control-panel,
+.results-panel,
+.graph-panel {
+  border: 1px solid var(--stroke);
+  border-radius: 18px;
+  background: var(--surface);
+  box-shadow: var(--shadow-soft);
+}
+
+.control-panel {
+  padding: 1.2rem;
+  display: grid;
+  gap: 0.8rem;
+  align-content: start;
+  animation: reveal-up 450ms ease;
+}
+
+.control-panel h2,
+.results-panel h2,
+.graph-header h3 {
+  margin: 0;
+  font-family: "Fraunces", serif;
+  color: var(--ink-900);
+}
+
+label,
+legend {
+  font-size: 0.85rem;
+  color: var(--ink-700);
+  font-weight: 600;
+}
+
+textarea,
+select {
+  width: 100%;
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 0.68rem 0.72rem;
+  font: inherit;
+  color: var(--ink-900);
+  background: #ffffff;
+  transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+textarea:focus,
+select:focus {
+  outline: none;
+  border-color: var(--teal-500);
+  box-shadow: 0 0 0 3px rgba(21, 128, 124, 0.12);
+}
+
+fieldset {
+  border: 1px solid var(--stroke);
+  border-radius: 12px;
+  padding: 0.6rem 0.75rem;
+  margin: 0;
+  display: grid;
+  gap: 0.45rem;
+}
+
+.hint {
+  margin: 0;
+  font-size: 0.8rem;
+  color: var(--ink-600);
+}
+
+.row-fields {
+  display: grid;
+  gap: 0.65rem;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.checkbox-row {
+  display: flex;
+  gap: 0.45rem;
+  align-items: center;
+  font-size: 0.9rem;
+  color: var(--ink-800);
+}
+
+.action-row {
+  display: flex;
+  gap: 0.6rem;
+}
+
+button {
+  border: none;
+  border-radius: 999px;
+  padding: 0.58rem 1rem;
+  background: linear-gradient(120deg, var(--teal-600), var(--teal-500));
+  color: #fbfffe;
+  font-weight: 700;
+  cursor: pointer;
+  transition: transform 100ms ease, filter 120ms ease;
+}
+
+button.secondary {
+  background: linear-gradient(120deg, var(--orange-500), var(--orange-400));
+}
+
+button:hover:enabled {
+  transform: translateY(-1px);
+  filter: brightness(1.05);
+}
+
+button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.status,
+.error {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
+.status {
+  color: var(--ink-700);
+}
+
+.error {
+  color: #b42318;
+}
+
+.results-panel {
+  padding: 1rem 1.05rem;
+  display: grid;
+  gap: 0.9rem;
+  min-height: 520px;
+  animation: reveal-up 480ms ease;
+}
+
+.results-panel > header p {
+  margin: 0.3rem 0 0;
+  color: var(--ink-600);
+}
+
+.empty-state {
+  border: 1px dashed var(--stroke);
+  border-radius: 14px;
+  padding: 1.1rem;
+  color: var(--ink-600);
+  background: rgba(255, 255, 255, 0.58);
+}
+
+.compare-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 0.8rem;
+}
+
+.response-card {
+  border: 1px solid var(--stroke);
+  border-radius: 14px;
+  background: #ffffff;
+  padding: 0.85rem;
+  display: grid;
+  gap: 0.65rem;
+  cursor: pointer;
+  transition: transform 100ms ease, box-shadow 120ms ease;
+}
+
+.response-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 24px rgba(37, 55, 45, 0.08);
+}
+
+.response-card-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+}
+
+.response-technique {
+  display: inline-flex;
+  border-radius: 999px;
+  background: #e4f7ee;
+  color: var(--teal-700);
+  padding: 0.2rem 0.56rem;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.response-model {
+  font-size: 0.74rem;
+  color: var(--ink-600);
+}
+
+.response-answer {
+  margin: 0;
+  line-height: 1.5;
+  color: var(--ink-800);
+  white-space: pre-wrap;
+}
+
+.prompt-preview summary {
+  cursor: pointer;
+  color: var(--teal-700);
+  font-weight: 600;
+}
+
+.prompt-preview pre {
+  margin: 0.45rem 0 0;
+  max-height: 180px;
+  overflow: auto;
+  border-radius: 8px;
+  background: #f4f7f5;
+  border: 1px solid #dde7e1;
+  padding: 0.6rem;
+  font-size: 0.78rem;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.graph-panel {
+  padding: 1rem 1.1rem;
+  display: grid;
+  gap: 0.75rem;
+  animation: reveal-up 500ms ease;
+}
+
+.graph-header p {
+  margin: 0.3rem 0 0;
+  color: var(--ink-600);
+}
+
+.graph-canvas {
+  overflow-x: auto;
+  border-radius: 12px;
+  border: 1px solid var(--stroke);
+  background: linear-gradient(180deg, #fbfffc, #f4f8f4);
+}
+
+.graph-canvas svg {
+  min-width: 1120px;
+  width: 100%;
+  height: 170px;
+}
+
+.graph-edge {
+  stroke: #b6ccc1;
+  stroke-width: 2;
+}
+
+.graph-edge.active {
+  stroke: var(--orange-500);
+  stroke-width: 3;
+}
+
+.graph-node {
+  fill: #ffffff;
+  stroke: #c2d8cf;
+  stroke-width: 2;
+}
+
+.graph-node.active {
+  fill: #fff3e9;
+  stroke: var(--orange-500);
+}
+
+.graph-node-label {
+  font-size: 0.72rem;
+  fill: var(--ink-800);
+  font-weight: 700;
+}
+
+.trace-list {
+  margin: 0;
+  padding: 0 0 0 1.15rem;
+  display: grid;
+  gap: 0.44rem;
+}
+
+.trace-list li {
+  color: var(--ink-700);
+}
+
+.trace-list span {
+  margin-left: 0.4rem;
+}
+
+@keyframes reveal-down {
+  from {
+    opacity: 0;
+    transform: translateY(-8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes reveal-up {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (max-width: 1020px) {
+  .layout-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .control-panel,
+  .results-panel,
+  .graph-panel {
+    border-radius: 14px;
+  }
+}
+
+@media (max-width: 640px) {
+  .page-shell {
+    width: min(1220px, 100% - 1rem);
+  }
+
+  .row-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .action-row {
+    flex-wrap: wrap;
+  }
+}

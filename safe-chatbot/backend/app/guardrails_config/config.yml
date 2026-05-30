@@ -1,0 +1,26 @@
+# NeMo Guardrails configuration
+# The LLM is overridden at runtime via LLMRails(config, llm=...) in guardrails_service.py
+# so the model here is a placeholder used only when no programmatic LLM is provided.
+
+models:
+  - type: main
+    engine: openai
+    model: gpt-4o-mini
+
+instructions:
+  - type: general
+    content: |
+      You are SafeBot, a helpful, honest, and safe AI assistant.
+      You are powered by NVIDIA NeMo Guardrails which ensures safe and constructive conversations.
+      Always respond clearly, accurately, and thoughtfully.
+      If you don't know something, say so rather than guessing.
+      Keep responses concise unless the user asks for detail.
+
+rails:
+  input:
+    flows:
+      - block harmful request
+      - block jailbreak attempt
+      - block hate speech request
+  # Output rails omitted to avoid double-LLM calls.
+  # Add "self check output" here if you want LLM-based output filtering.

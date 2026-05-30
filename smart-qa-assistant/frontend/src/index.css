@@ -1,0 +1,46 @@
+@import url("https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Space+Grotesk:wght@400;500;700&display=swap");
+
+:root {
+  --ink-900: #112e2c;
+  --ink-800: #1b3d39;
+  --ink-700: #335450;
+  --ink-600: #597471;
+
+  --teal-700: #166b67;
+  --teal-600: #1a7b74;
+  --teal-500: #289188;
+
+  --orange-500: #dc6f36;
+  --orange-400: #ec8955;
+
+  --surface: rgba(255, 255, 252, 0.92);
+  --stroke: #d2e1d9;
+  --shadow-soft: 0 18px 35px rgba(46, 73, 54, 0.08);
+
+  font-family: "Space Grotesk", sans-serif;
+  line-height: 1.5;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-width: 320px;
+  min-height: 100vh;
+  color: var(--ink-900);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(201, 255, 222, 0.5), transparent 32%),
+    radial-gradient(circle at 92% 14%, rgba(255, 202, 152, 0.33), transparent 30%),
+    linear-gradient(145deg, #f0f7ef 0%, #f7f4e8 48%, #f4efe6 100%);
+}
+
+#root {
+  min-height: 100vh;
+}
