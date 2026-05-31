@@ -10,6 +10,8 @@ export interface ChatRequest {
   session_id: string;
   history: HistoryMessage[];
   provider: Provider;
+  guardrails_ai_enabled: boolean;
+  nemo_enabled: boolean;
 }
 
 export interface GuardrailsAIInfo {

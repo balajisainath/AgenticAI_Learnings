@@ -64,3 +64,12 @@ export interface GraphResponse {
   nodes: GraphNode[];
   edges: GraphEdge[];
 }
+
+export interface StreamEvent {
+  type: "node_start" | "node_complete" | "complete";
+  node: string;
+  detail: string;
+  timestamp: number;
+  prompt_preview?: string;
+  result?: AskResponse;
+}

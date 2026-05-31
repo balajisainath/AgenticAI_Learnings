@@ -74,6 +74,62 @@ class SmartQAWorkflow:
             metadata=metadata,
         )
 
+    def run_streaming(self, request: AskRequest):
+        """Stream node-by-node execution events via LangGraph's .stream()."""
+        import time
+
+        initial_state: WorkflowState = {
+            "question": request.question,
+            "persona": request.persona.value,
+            "style": request.style.value,
+            "requested_technique": request.technique.value,
+            "trace": [],
+        }
+
+        metadata = {
+            "persona": request.persona.value,
+            "style": request.style.value,
+            "provider": self.settings.normalized_provider,
+            "model": self.settings.selected_model_name if self.model else "mock-llm",
+        }
+
+        final_state: WorkflowState = {}
+
+        for chunk in self.graph.stream(initial_state, stream_mode="updates"):
+            for node_name, node_output in chunk.items():
+                if not isinstance(node_output, dict):
+                    continue
+
+                final_state.update(node_output)
+
+                trace_entries = node_output.get("trace", [])
+                latest_trace = trace_entries[-1] if trace_entries else {}
+
+                event = {
+                    "type": "node_start" if node_name != "response_formatter" else "node_complete",
+                    "node": node_name,
+                    "detail": latest_trace.get("detail", ""),
+                    "timestamp": time.time(),
+                }
+
+                if node_name == "prompt_builder":
+                    event["prompt_preview"] = node_output.get("prompt_preview", "")
+
+                if node_name == "response_formatter":
+                    event["type"] = "complete"
+                    selected = PromptTechnique(final_state.get("selected_technique", "auto"))
+                    event["result"] = {
+                        "technique": selected.value,
+                        "answer": node_output.get("formatted_response", ""),
+                        "prompt_preview": final_state.get("prompt_preview", ""),
+                        "trace": final_state.get("trace", []),
+                        "metadata": metadata,
+                    }
+
+                yield event
+                # Stagger events so the frontend can render nodes lighting up sequentially
+                time.sleep(0.35)
+
     def export_graph_definition(self) -> GraphResponse:
         return GraphResponse(
             title="Smart Prompting Workflow",

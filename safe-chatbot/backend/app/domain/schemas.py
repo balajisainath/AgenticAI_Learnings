@@ -15,6 +15,8 @@ class ChatRequest(BaseModel):
     session_id: str = ""
     history: list[HistoryMessage] = []
     provider: str = "openai"
+    guardrails_ai_enabled: bool = True
+    nemo_enabled: bool = True
 
 
 # ── Per-framework layer metadata ─────────────────────────────────────────────

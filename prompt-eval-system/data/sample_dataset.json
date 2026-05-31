@@ -1,0 +1,42 @@
+[
+  {
+    "question": "What is the capital of France?",
+    "expected_output": "The capital of France is Paris.",
+    "context": "France is a country in Western Europe."
+  },
+  {
+    "question": "What is photosynthesis?",
+    "expected_output": "Photosynthesis is the process by which plants convert sunlight, water, and carbon dioxide into glucose and oxygen.",
+    "context": "Biology - plant processes"
+  },
+  {
+    "question": "Who wrote Romeo and Juliet?",
+    "expected_output": "William Shakespeare wrote Romeo and Juliet.",
+    "context": "English literature"
+  },
+  {
+    "question": "What is the speed of light?",
+    "expected_output": "The speed of light in a vacuum is approximately 299,792,458 meters per second (about 3 x 10^8 m/s).",
+    "context": "Physics - electromagnetic radiation"
+  },
+  {
+    "question": "Explain the water cycle in simple terms.",
+    "expected_output": "The water cycle is the continuous movement of water: it evaporates from surfaces, rises to form clouds (condensation), falls as precipitation (rain/snow), and flows back to oceans and lakes through rivers and groundwater.",
+    "context": "Earth science - hydrology"
+  },
+  {
+    "question": "What is machine learning?",
+    "expected_output": "Machine learning is a subset of artificial intelligence where computer systems learn from data to improve their performance on tasks without being explicitly programmed.",
+    "context": "Computer science - AI"
+  },
+  {
+    "question": "What causes seasons on Earth?",
+    "expected_output": "Seasons are caused by the Earth's axial tilt of approximately 23.5 degrees relative to its orbital plane around the Sun, which causes different hemispheres to receive varying amounts of direct sunlight throughout the year.",
+    "context": "Astronomy - Earth science"
+  },
+  {
+    "question": "What is the Pythagorean theorem?",
+    "expected_output": "The Pythagorean theorem states that in a right triangle, the square of the hypotenuse (c) equals the sum of the squares of the other two sides (a and b): a² + b² = c².",
+    "context": "Mathematics - geometry"
+  }
+]

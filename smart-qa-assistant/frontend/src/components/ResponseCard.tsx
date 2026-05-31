@@ -1,27 +1,29 @@
+import Markdown from "react-markdown";
 import type { AskResponse } from "../types";
 
 interface ResponseCardProps {
   response: AskResponse;
-  onSelectTrace?: (response: AskResponse) => void;
 }
 
 function prettifyTechnique(value: string): string {
   return value
     .split("_")
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(" ");
 }
 
-export function ResponseCard({ response, onSelectTrace }: ResponseCardProps) {
+export function ResponseCard({ response }: ResponseCardProps) {
   return (
-    <article className="response-card" onClick={() => onSelectTrace?.(response)}>
+    <article className="response-card">
       <header className="response-card-header">
         <span className="response-technique">{prettifyTechnique(response.technique)}</span>
         <span className="response-model">{response.metadata.model}</span>
       </header>
-      <p className="response-answer">{response.answer}</p>
+      <div className="response-answer markdown-body">
+        <Markdown>{response.answer}</Markdown>
+      </div>
       <details className="prompt-preview">
-        <summary>Prompt Preview</summary>
+        <summary>View Prompt</summary>
         <pre>{response.prompt_preview}</pre>
       </details>
     </article>

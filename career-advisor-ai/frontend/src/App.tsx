@@ -86,6 +86,7 @@ function App() {
   async function handleAnalyzeCareer(): Promise<void> {
     setLoadingAnalysis(true);
     setError("");
+    setActiveTrace([]);
 
     try {
       const response = await analyzeCareer({
@@ -109,6 +110,7 @@ function App() {
   async function handleChat(): Promise<void> {
     setLoadingChat(true);
     setError("");
+    setActiveTrace([]);
 
     try {
       const response = await chatCareerCoach({
@@ -155,118 +157,187 @@ function App() {
 
       <section className="layout-grid">
         <aside className="control-panel">
-          <h2>Profile Input</h2>
+          <header className="panel-header">
+            <h2>Profile Input</h2>
+            <p>Complete the form once, then run analysis, chat, and deep research.</p>
+          </header>
 
-          <label htmlFor="session">Session ID</label>
-          <input id="session" value={sessionId} onChange={(event) => setSessionId(event.target.value)} />
+          <section className="input-section">
+            <h3>Session + Basics</h3>
+            <div className="section-grid">
+              <div className="field-group wide">
+                <label htmlFor="session">Session ID</label>
+                <input
+                  id="session"
+                  value={sessionId}
+                  onChange={(event) => setSessionId(event.target.value)}
+                  placeholder="Auto-generated session id"
+                />
+              </div>
 
-          <label htmlFor="fullName">Name</label>
-          <input id="fullName" value={fullName} onChange={(event) => setFullName(event.target.value)} />
+              <div className="field-group wide">
+                <label htmlFor="fullName">Name</label>
+                <input
+                  id="fullName"
+                  value={fullName}
+                  onChange={(event) => setFullName(event.target.value)}
+                  placeholder="Your name"
+                />
+              </div>
 
-          <div className="row-fields">
-            <div>
-              <label htmlFor="role">Current Role</label>
-              <input id="role" value={currentRole} onChange={(event) => setCurrentRole(event.target.value)} />
+              <div className="field-group">
+                <label htmlFor="role">Current Role</label>
+                <input
+                  id="role"
+                  value={currentRole}
+                  onChange={(event) => setCurrentRole(event.target.value)}
+                  placeholder="Student / Developer / Analyst"
+                />
+              </div>
+
+              <div className="field-group">
+                <label htmlFor="years">Years Experience</label>
+                <input
+                  id="years"
+                  type="number"
+                  min={0}
+                  max={40}
+                  step={0.5}
+                  value={yearsExperience}
+                  onChange={(event) => setYearsExperience(event.target.value)}
+                />
+              </div>
+
+              <div className="field-group wide">
+                <label htmlFor="education">Education</label>
+                <input
+                  id="education"
+                  value={education}
+                  onChange={(event) => setEducation(event.target.value)}
+                  placeholder="Degree, certification, or equivalent"
+                />
+              </div>
             </div>
-            <div>
-              <label htmlFor="years">Years Experience</label>
-              <input
-                id="years"
-                type="number"
-                min={0}
-                max={40}
-                step={0.5}
-                value={yearsExperience}
-                onChange={(event) => setYearsExperience(event.target.value)}
+          </section>
+
+          <section className="input-section">
+            <h3>Career Signals</h3>
+            <div className="field-group">
+              <label htmlFor="skills">Skills (comma-separated)</label>
+              <textarea
+                id="skills"
+                value={skills}
+                onChange={(event) => setSkills(event.target.value)}
+                rows={4}
+                placeholder="python, fastapi, sql, data analysis"
               />
             </div>
-          </div>
 
-          <label htmlFor="education">Education</label>
-          <input id="education" value={education} onChange={(event) => setEducation(event.target.value)} />
+            <div className="field-group">
+              <label htmlFor="interests">Interests (comma-separated)</label>
+              <textarea
+                id="interests"
+                value={interests}
+                onChange={(event) => setInterests(event.target.value)}
+                rows={3}
+                placeholder="AI products, data science, backend engineering"
+              />
+            </div>
 
-          <label htmlFor="skills">Skills (comma-separated)</label>
-          <textarea id="skills" value={skills} onChange={(event) => setSkills(event.target.value)} rows={3} />
+            <div className="field-group">
+              <label htmlFor="targets">Target Roles (comma-separated)</label>
+              <textarea
+                id="targets"
+                value={targetRoles}
+                onChange={(event) => setTargetRoles(event.target.value)}
+                rows={3}
+                placeholder="Machine Learning Engineer, Data Scientist"
+              />
+            </div>
 
-          <label htmlFor="interests">Interests (comma-separated)</label>
-          <textarea
-            id="interests"
-            value={interests}
-            onChange={(event) => setInterests(event.target.value)}
-            rows={2}
-          />
+            <div className="section-grid">
+              <div className="field-group wide">
+                <label htmlFor="locations">Preferred Locations</label>
+                <input
+                  id="locations"
+                  value={preferredLocations}
+                  onChange={(event) => setPreferredLocations(event.target.value)}
+                  placeholder="Remote, Bengaluru, Hyderabad"
+                />
+              </div>
 
-          <label htmlFor="targets">Target Roles (comma-separated)</label>
-          <textarea
-            id="targets"
-            value={targetRoles}
-            onChange={(event) => setTargetRoles(event.target.value)}
-            rows={2}
-          />
+              <div className="field-group wide">
+                <label htmlFor="priorities">Priorities</label>
+                <input
+                  id="priorities"
+                  value={priorities}
+                  onChange={(event) => setPriorities(event.target.value)}
+                  placeholder="growth, compensation, flexibility"
+                />
+              </div>
+            </div>
 
-          <label htmlFor="locations">Preferred Locations (comma-separated)</label>
-          <input
-            id="locations"
-            value={preferredLocations}
-            onChange={(event) => setPreferredLocations(event.target.value)}
-          />
+            <div className="field-group">
+              <label htmlFor="resume">Resume Text (optional)</label>
+              <textarea
+                id="resume"
+                value={resumeText}
+                onChange={(event) => setResumeText(event.target.value)}
+                rows={8}
+                placeholder="Paste resume text for keyword and impact analysis"
+              />
+            </div>
 
-          <label htmlFor="priorities">Priorities (comma-separated)</label>
-          <input
-            id="priorities"
-            value={priorities}
-            onChange={(event) => setPriorities(event.target.value)}
-          />
-
-          <label htmlFor="resume">Resume Text (optional)</label>
-          <textarea
-            id="resume"
-            value={resumeText}
-            onChange={(event) => setResumeText(event.target.value)}
-            rows={6}
-          />
-
-          <div className="action-row">
             <button
               type="button"
               onClick={handleAnalyzeCareer}
               disabled={loadingAnalysis || profilePreview.current_role.trim().length < 2}
             >
-              {loadingAnalysis ? "Analyzing..." : "Analyze Career"}
+              {loadingAnalysis ? "Analyzing Career Profile..." : "Analyze Career"}
             </button>
-          </div>
+          </section>
 
-          <label htmlFor="chatQuestion">Career Coach Chat</label>
-          <textarea
-            id="chatQuestion"
-            value={chatMessage}
-            onChange={(event) => setChatMessage(event.target.value)}
-            rows={3}
-          />
-          <button
-            type="button"
-            className="secondary"
-            onClick={handleChat}
-            disabled={loadingChat || chatMessage.trim().length < 4}
-          >
-            {loadingChat ? "Thinking..." : "Ask Career Coach"}
-          </button>
+          <section className="input-section">
+            <h3>Interactive Agents</h3>
 
-          <label htmlFor="deepResearch">Deep Agents Research</label>
-          <textarea
-            id="deepResearch"
-            value={deepResearchQuery}
-            onChange={(event) => setDeepResearchQuery(event.target.value)}
-            rows={3}
-          />
-          <button
-            type="button"
-            className="ghost"
-            onClick={handleDeepResearch}
-            disabled={loadingDeepResearch || deepResearchQuery.trim().length < 4}
-          >
-            {loadingDeepResearch ? "Researching..." : "Run Deep Research"}
-          </button>
+            <div className="field-group">
+              <label htmlFor="chatQuestion">Career Coach Chat</label>
+              <textarea
+                id="chatQuestion"
+                value={chatMessage}
+                onChange={(event) => setChatMessage(event.target.value)}
+                rows={4}
+                placeholder="Ask for interview prep, role transition plan, or project guidance"
+              />
+              <button
+                type="button"
+                className="secondary"
+                onClick={handleChat}
+                disabled={loadingChat || chatMessage.trim().length < 4}
+              >
+                {loadingChat ? "Generating Chat Guidance..." : "Ask Career Coach"}
+              </button>
+            </div>
+
+            <div className="field-group">
+              <label htmlFor="deepResearch">Deep Agents Research</label>
+              <textarea
+                id="deepResearch"
+                value={deepResearchQuery}
+                onChange={(event) => setDeepResearchQuery(event.target.value)}
+                rows={4}
+                placeholder="Ask market trend questions for role/location"
+              />
+              <button
+                type="button"
+                className="ghost"
+                onClick={handleDeepResearch}
+                disabled={loadingDeepResearch || deepResearchQuery.trim().length < 4}
+              >
+                {loadingDeepResearch ? "Running Deep Research..." : "Run Deep Research"}
+              </button>
+            </div>
+          </section>
 
           {error && <p className="error">{error}</p>}
         </aside>
@@ -386,7 +457,7 @@ function App() {
               </section>
 
               <button type="button" className="ghost" onClick={() => setActiveTrace(analysis.trace)}>
-                View Analysis Trace In Graph
+                Replay Analysis Trace In Graph
               </button>
             </>
           )}
@@ -398,7 +469,7 @@ function App() {
                 <p className="prelike">{chatResult.answer}</p>
                 <p>Risk: {chatResult.safety_report.overall_risk}</p>
                 <button type="button" className="ghost" onClick={() => setActiveTrace(chatResult.trace)}>
-                  View Chat Trace In Graph
+                  Replay Chat Trace In Graph
                 </button>
               </article>
             </section>

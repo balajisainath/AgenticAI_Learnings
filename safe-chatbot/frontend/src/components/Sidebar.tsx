@@ -10,6 +10,10 @@ interface SidebarProps {
   provider: Provider;
   onProviderChange: (p: Provider) => void;
   guardrailsStatus: Record<string, unknown> | null;
+  guardrailsAiEnabled: boolean;
+  nemoEnabled: boolean;
+  onToggleGuardrailsAi: (v: boolean) => void;
+  onToggleNemo: (v: boolean) => void;
 }
 
 const PROVIDERS: { value: Provider; label: string; color: string }[] = [
@@ -21,6 +25,7 @@ const PROVIDERS: { value: Provider; label: string; color: string }[] = [
 export function Sidebar({
   conversations, activeId, onSelect, onNew, onDelete,
   provider, onProviderChange, guardrailsStatus,
+  guardrailsAiEnabled, nemoEnabled, onToggleGuardrailsAi, onToggleNemo,
 }: SidebarProps) {
   const gStatus = guardrailsStatus as Record<string, boolean> | null;
 
@@ -102,20 +107,30 @@ export function Sidebar({
         ))}
       </div>
 
-      {/* ── Guardrails status footer ──────────────────────────────────────── */}
-      {gStatus && (
-        <div style={{
-          padding: '10px 14px 14px',
-          borderTop: '1px solid var(--border)',
-          display: 'flex', flexDirection: 'column', gap: 6,
-        }}>
-          <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 4 }}>
-            Safety Layers
-          </p>
-          <StatusDot label="Guardrails AI" active={!!gStatus.guardrails_ai_active} color="var(--badge-grails)" />
-          <StatusDot label="NeMo Guardrails" active={!!gStatus.nemo_active} color="var(--badge-nemo)" />
-        </div>
-      )}
+      {/* ── Guardrails toggle footer ──────────────────────────────────── */}
+      <div style={{
+        padding: '10px 14px 14px',
+        borderTop: '1px solid var(--border)',
+        display: 'flex', flexDirection: 'column', gap: 8,
+      }}>
+        <p style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: 1, marginBottom: 2 }}>
+          Safety Layers
+        </p>
+        <ToggleRow
+          label="Guardrails AI"
+          color="var(--badge-grails)"
+          enabled={guardrailsAiEnabled}
+          onToggle={onToggleGuardrailsAi}
+          available={!!gStatus?.guardrails_ai_active}
+        />
+        <ToggleRow
+          label="NeMo Guardrails"
+          color="var(--badge-nemo)"
+          enabled={nemoEnabled}
+          onToggle={onToggleNemo}
+          available={!!gStatus?.nemo_active}
+        />
+      </div>
     </aside>
   );
 }
@@ -169,20 +184,55 @@ function ConvRow({ conv, isActive, onSelect, onDelete }: {
   );
 }
 
-function StatusDot({ label, active, color }: { label: string; active: boolean; color: string }) {
+function ToggleRow({ label, color, enabled, onToggle, available }: {
+  label: string;
+  color: string;
+  enabled: boolean;
+  onToggle: (v: boolean) => void;
+  available: boolean;
+}) {
+  const active = enabled && available;
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
       <div style={{
         width: 7, height: 7, borderRadius: '50%',
         background: active ? color : '#444',
         boxShadow: active ? `0 0 6px ${color}` : 'none',
+        flexShrink: 0,
       }} />
-      <span style={{ fontSize: '0.75rem', color: active ? 'var(--text-secondary)' : 'var(--text-muted)' }}>
+      <span style={{ fontSize: '0.75rem', color: active ? 'var(--text-secondary)' : 'var(--text-muted)', flex: 1 }}>
         {label}
       </span>
-      <span style={{ marginLeft: 'auto', fontSize: '0.68rem', color: active ? color : '#555' }}>
-        {active ? 'ON' : 'OFF'}
-      </span>
+      {/* Toggle switch */}
+      <button
+        onClick={() => onToggle(!enabled)}
+        title={!available ? 'Not available (backend not configured)' : enabled ? 'Disable' : 'Enable'}
+        style={{
+          position: 'relative',
+          width: 34,
+          height: 18,
+          borderRadius: 9,
+          border: 'none',
+          cursor: available ? 'pointer' : 'not-allowed',
+          background: active ? color : '#333',
+          transition: 'background 0.2s',
+          opacity: available ? 1 : 0.4,
+          flexShrink: 0,
+        }}
+        disabled={!available}
+      >
+        <div style={{
+          position: 'absolute',
+          top: 2,
+          left: active ? 18 : 2,
+          width: 14,
+          height: 14,
+          borderRadius: '50%',
+          background: '#fff',
+          transition: 'left 0.2s',
+          boxShadow: '0 1px 3px rgba(0,0,0,0.3)',
+        }} />
+      </button>
     </div>
   );
 }

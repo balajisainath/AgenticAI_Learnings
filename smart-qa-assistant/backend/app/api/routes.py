@@ -1,6 +1,11 @@
+from __future__ import annotations
+
+import json
 from functools import lru_cache
+from typing import Generator
 
 from fastapi import APIRouter, Depends
+from fastapi.responses import StreamingResponse
 
 from app.core.config import Settings, get_settings
 from app.domain.schemas import (
@@ -36,6 +41,29 @@ def ask_question(
     workflow: SmartQAWorkflow = Depends(get_workflow),
 ) -> AskResponse:
     return workflow.run(payload)
+
+
+@router.post("/chat/stream")
+def stream_ask(
+    payload: AskRequest,
+    workflow: SmartQAWorkflow = Depends(get_workflow),
+) -> StreamingResponse:
+    """Stream each LangGraph node execution as an SSE event."""
+
+    def event_generator() -> Generator[str, None, None]:
+        for event in workflow.run_streaming(payload):
+            data = json.dumps(event)
+            yield f"data: {data}\n\n"
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )
 
 
 @router.post("/chat/compare", response_model=CompareResponse)

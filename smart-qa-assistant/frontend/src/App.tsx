@@ -1,6 +1,6 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 
-import { askQuestion, comparePromptTechniques, fetchGraph } from "./api";
+import { streamAsk, comparePromptTechniques, fetchGraph } from "./api";
 import { GraphFlow } from "./components/GraphFlow";
 import { ResponseCard } from "./components/ResponseCard";
 import "./App.css";
@@ -9,263 +9,212 @@ import type {
   Persona,
   PromptStyle,
   PromptTechnique,
-  TraceStep,
+  StreamEvent,
   GraphResponse,
 } from "./types";
 
 const PERSONAS: Persona[] = ["teacher", "architect", "analyst", "product_coach"];
-const PROMPT_STYLES: PromptStyle[] = ["technical", "concise", "socratic", "executive"];
+const STYLES: PromptStyle[] = ["technical", "concise", "socratic", "executive"];
 const TECHNIQUES: PromptTechnique[] = [
   "auto",
+  "zero_shot",
   "role",
   "few_shot",
   "chain_of_thought",
-  "style_variation",
-];
-const DEFAULT_COMPARE_SET: PromptTechnique[] = [
-  "role",
-  "few_shot",
-  "chain_of_thought",
+  "step_back",
+  "critique_refine",
+  "self_consistency",
   "style_variation",
 ];
 
 function titleCase(value: string): string {
   return value
     .split("_")
-    .map((segment) => segment.charAt(0).toUpperCase() + segment.slice(1))
+    .map((s) => s.charAt(0).toUpperCase() + s.slice(1))
     .join(" ");
 }
 
 function App() {
-  const [question, setQuestion] = useState(
-    "Design a production-ready rollout strategy for introducing AI summaries in a SaaS product.",
-  );
+  const [question, setQuestion] = useState("");
   const [persona, setPersona] = useState<Persona>("architect");
   const [style, setStyle] = useState<PromptStyle>("technical");
   const [technique, setTechnique] = useState<PromptTechnique>("auto");
-  const [compareTechniques, setCompareTechniques] = useState<PromptTechnique[]>(
-    DEFAULT_COMPARE_SET,
-  );
 
-  const [singleResponse, setSingleResponse] = useState<AskResponse | null>(null);
-  const [compareResponses, setCompareResponses] = useState<AskResponse[]>([]);
+  const [responses, setResponses] = useState<AskResponse[]>([]);
   const [graph, setGraph] = useState<GraphResponse | null>(null);
-  const [activeTrace, setActiveTrace] = useState<TraceStep[]>([]);
-
+  const [activeNodes, setActiveNodes] = useState<string[]>([]);
+  const [streamLog, setStreamLog] = useState<StreamEvent[]>([]);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string>("");
+  const [error, setError] = useState("");
+
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    fetchGraph()
-      .then((payload) => setGraph(payload))
-      .catch(() => {
-        setError("Could not load workflow graph. Ensure the backend is running.");
-      });
+    fetchGraph().then(setGraph).catch(() => setError("Backend not reachable"));
   }, []);
 
-  const visibleResponses = useMemo(() => {
-    if (compareResponses.length > 0) {
-      return compareResponses;
-    }
-    if (singleResponse) {
-      return [singleResponse];
-    }
-    return [];
-  }, [compareResponses, singleResponse]);
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
 
-  async function handleAsk(): Promise<void> {
+  const handleStream = useCallback(() => {
+    if (!question.trim()) return;
+
     setLoading(true);
     setError("");
-    setCompareResponses([]);
+    setResponses([]);
+    setActiveNodes([]);
+    setStreamLog([]);
 
-    try {
-      const response = await askQuestion({
-        question,
-        persona,
-        style,
-        technique,
-      });
+    abortRef.current?.abort();
 
-      setSingleResponse(response);
-      setActiveTrace(response.trace);
-    } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "Request failed.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }
+    const controller = streamAsk(
+      { question, persona, style, technique },
+      (event: StreamEvent) => {
+        setStreamLog((prev) => [...prev, event]);
+        setActiveNodes((prev) => {
+          if (!prev.includes(event.node)) return [...prev, event.node];
+          return prev;
+        });
 
-  async function handleCompare(): Promise<void> {
-    setLoading(true);
-    setError("");
-    setSingleResponse(null);
-
-    try {
-      const response = await comparePromptTechniques({
-        question,
-        persona,
-        style,
-        techniques: compareTechniques,
-      });
-
-      setCompareResponses(response.responses);
-      setActiveTrace(response.responses[0]?.trace ?? []);
-    } catch (requestError) {
-      const message = requestError instanceof Error ? requestError.message : "Request failed.";
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  }
-
-  function toggleTechnique(item: PromptTechnique): void {
-    setCompareTechniques((current) => {
-      if (current.includes(item)) {
-        if (current.length === 2) {
-          return current;
+        if (event.type === "complete" && event.result) {
+          setResponses([event.result]);
+          setLoading(false);
         }
-        return current.filter((value) => value !== item);
-      }
-      return [...current, item];
-    });
-  }
+      },
+      (errMsg) => {
+        setError(errMsg);
+        setLoading(false);
+      },
+      () => {
+        setLoading(false);
+      },
+    );
+
+    abortRef.current = controller;
+  }, [question, persona, style, technique]);
+
+  const handleCompare = useCallback(async () => {
+    if (!question.trim()) return;
+    setLoading(true);
+    setError("");
+    setActiveNodes([]);
+    setStreamLog([]);
+    abortRef.current?.abort();
+
+    try {
+      const result = await comparePromptTechniques({
+        question,
+        persona,
+        style,
+        techniques: ["role", "few_shot", "chain_of_thought", "style_variation"],
+      });
+      setResponses(result.responses);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Failed");
+    } finally {
+      setLoading(false);
+    }
+  }, [question, persona, style]);
+
+  const streamState = loading
+    ? "Streaming live execution"
+    : streamLog.length > 0
+      ? "Latest run completed"
+      : "Idle";
 
   return (
-    <div className="page-shell">
-      <header className="hero-panel">
-        <p className="hero-kicker">Prompt Engineering Studio</p>
-        <h1>Smart Q&A Assistant</h1>
-        <p>
-          Compare role prompting, few-shot prompting, chain-of-thought, and style-driven prompts
-          with a live LangGraph execution pipeline.
-        </p>
-      </header>
+    <div className="shell">
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-brand">
+          <div className="brand-icon">Q</div>
+          <span>Smart QA</span>
+        </div>
 
-      <section className="layout-grid">
-        <aside className="control-panel">
-          <h2>Conversation Controls</h2>
-
-          <label htmlFor="question">Question</label>
+        <div className="sidebar-section">
+          <label>Question</label>
           <textarea
-            id="question"
             value={question}
-            onChange={(event) => setQuestion(event.target.value)}
-            rows={7}
+            onChange={(e) => setQuestion(e.target.value)}
+            placeholder="Ask something..."
+            rows={4}
           />
+        </div>
 
-          <div className="row-fields">
-            <div>
-              <label htmlFor="persona">Persona</label>
-              <select
-                id="persona"
-                value={persona}
-                onChange={(event) => setPersona(event.target.value as Persona)}
-              >
-                {PERSONAS.map((item) => (
-                  <option key={item} value={item}>
-                    {titleCase(item)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label htmlFor="style">Prompt Style</label>
-              <select
-                id="style"
-                value={style}
-                onChange={(event) => setStyle(event.target.value as PromptStyle)}
-              >
-                {PROMPT_STYLES.map((item) => (
-                  <option key={item} value={item}>
-                    {titleCase(item)}
-                  </option>
-                ))}
-              </select>
-            </div>
+        <div className="sidebar-row">
+          <div className="sidebar-section">
+            <label>Persona</label>
+            <select value={persona} onChange={(e) => setPersona(e.target.value as Persona)}>
+              {PERSONAS.map((p) => (
+                <option key={p} value={p}>{titleCase(p)}</option>
+              ))}
+            </select>
           </div>
+          <div className="sidebar-section">
+            <label>Style</label>
+            <select value={style} onChange={(e) => setStyle(e.target.value as PromptStyle)}>
+              {STYLES.map((s) => (
+                <option key={s} value={s}>{titleCase(s)}</option>
+              ))}
+            </select>
+          </div>
+        </div>
 
-          <label htmlFor="technique">Single Technique</label>
-          <select
-            id="technique"
-            value={technique}
-            onChange={(event) => setTechnique(event.target.value as PromptTechnique)}
-          >
-            {TECHNIQUES.map((item) => (
-              <option key={item} value={item}>
-                {titleCase(item)}
-              </option>
+        <div className="sidebar-section">
+          <label>Technique</label>
+          <select value={technique} onChange={(e) => setTechnique(e.target.value as PromptTechnique)}>
+            {TECHNIQUES.map((t) => (
+              <option key={t} value={t}>{titleCase(t)}</option>
             ))}
           </select>
+        </div>
 
-          <fieldset>
-            <legend>Compare Techniques</legend>
-            <p className="hint">Choose at least two techniques for side-by-side comparison.</p>
-            {DEFAULT_COMPARE_SET.map((item) => (
-              <label key={item} className="checkbox-row">
-                <input
-                  type="checkbox"
-                  checked={compareTechniques.includes(item)}
-                  onChange={() => toggleTechnique(item)}
-                />
-                <span>{titleCase(item)}</span>
-              </label>
-            ))}
-          </fieldset>
+        <div className="sidebar-actions">
+          <button className="btn-primary" onClick={handleStream} disabled={loading || !question.trim()}>
+            {loading ? "Running..." : "Run"}
+          </button>
+          <button className="btn-secondary" onClick={handleCompare} disabled={loading || !question.trim()}>
+            Compare
+          </button>
+        </div>
 
-          <div className="action-row">
-            <button type="button" onClick={handleAsk} disabled={loading || question.trim().length < 3}>
-              Run Single
-            </button>
-            <button
-              type="button"
-              className="secondary"
-              onClick={handleCompare}
-              disabled={loading || question.trim().length < 3 || compareTechniques.length < 2}
-            >
-              Compare
-            </button>
+        {error && <p className="error-msg">{error}</p>}
+      </aside>
+
+      {/* Main */}
+      <main className="main-area">
+        <section className="hero-strip">
+          <div>
+            <p className="hero-kicker">Prompt Engineering Lab</p>
+            <h1>Smart Q&A Assistant</h1>
+            <p className="hero-subtext">
+              Live LangGraph node execution with side-by-side prompt strategy comparisons.
+            </p>
           </div>
-
-          {loading && <p className="status">Generating response...</p>}
-          {error && <p className="error">{error}</p>}
-        </aside>
-
-        <section className="results-panel">
-          <header>
-            <h2>Responses</h2>
-            <p>Tap a response card to sync execution trace with the LangGraph view.</p>
-          </header>
-
-          {visibleResponses.length === 0 && !loading && (
-            <div className="empty-state">
-              Choose a persona and prompt strategy, then run a query to inspect the result.
-            </div>
-          )}
-
-          {compareResponses.length > 0 && (
-            <div className="compare-grid">
-              {compareResponses.map((item, index) => (
-                <ResponseCard
-                  key={`${item.technique}-${index}`}
-                  response={item}
-                  onSelectTrace={(selected) => setActiveTrace(selected.trace)}
-                />
-              ))}
-            </div>
-          )}
-
-          {singleResponse && compareResponses.length === 0 && (
-            <ResponseCard
-              response={singleResponse}
-              onSelectTrace={(selected) => setActiveTrace(selected.trace)}
-            />
-          )}
+          <div className="hero-meta">
+            <span className="meta-pill">{streamState}</span>
+            <span className="meta-pill">Responses: {responses.length}</span>
+          </div>
         </section>
-      </section>
 
-      <GraphFlow graph={graph} trace={activeTrace} />
+        {/* Graph execution visualizer */}
+        <GraphFlow graph={graph} activeNodes={activeNodes} streamLog={streamLog} />
+
+        {/* Response cards */}
+        <section className="responses-section">
+          {responses.length === 0 && !loading && (
+            <div className="empty">Enter a question and hit Run to see the LangGraph pipeline execute live.</div>
+          )}
+          <div className="response-grid">
+            {responses.map((r, i) => (
+              <ResponseCard key={`${r.technique}-${i}`} response={r} />
+            ))}
+          </div>
+        </section>
+      </main>
     </div>
   );
 }

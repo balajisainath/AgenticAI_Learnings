@@ -21,6 +21,8 @@ class ChatState(TypedDict, total=False):
     message: str
     history: list[dict[str, str]]
     session_id: str
+    guardrails_ai_enabled: bool
+    nemo_enabled: bool
     response: str
     guardrails_info: dict
     trace: list[dict[str, str]]
@@ -37,6 +39,8 @@ class SafeChatWorkflow:
             "message": request.message,
             "history": [m.model_dump() for m in request.history],
             "session_id": request.session_id,
+            "guardrails_ai_enabled": request.guardrails_ai_enabled,
+            "nemo_enabled": request.nemo_enabled,
             "trace": [],
         }
         result: ChatState = await self.graph.ainvoke(initial)
@@ -96,6 +100,8 @@ class SafeChatWorkflow:
         response, guardrails = await self.guardrails.process(
             message=state["message"],
             history=state.get("history", []),
+            guardrails_ai_enabled=state.get("guardrails_ai_enabled", True),
+            nemo_enabled=state.get("nemo_enabled", True),
         )
         if guardrails.input_blocked:
             trace.append({

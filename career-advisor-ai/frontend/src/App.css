@@ -1,5 +1,5 @@
 .page-shell {
-  width: min(1280px, 100% - 2rem);
+  width: min(1500px, 100% - 2rem);
   margin: 1.5rem auto 2.5rem;
   display: grid;
   gap: 1.25rem;
@@ -40,8 +40,9 @@
 
 .layout-grid {
   display: grid;
-  grid-template-columns: 380px minmax(0, 1fr);
+  grid-template-columns: minmax(470px, 0.95fr) minmax(0, 1.35fr);
   gap: 1rem;
+  align-items: start;
 }
 
 .control-panel,
@@ -56,24 +57,62 @@
 .control-panel {
   padding: 1rem;
   display: grid;
-  gap: 0.7rem;
+  gap: 0.9rem;
   align-content: start;
-  max-height: calc(100vh - 4rem);
-  overflow-y: auto;
   animation: reveal-up 450ms ease;
+}
+
+.panel-header {
+  display: grid;
+  gap: 0.2rem;
+}
+
+.panel-header p {
+  margin: 0;
+  color: var(--ink-600);
+  font-size: 0.92rem;
 }
 
 .control-panel h2,
 .results-panel h2,
 .graph-header h3,
-.result-section h3 {
+.result-section h3,
+.input-section h3 {
   margin: 0;
   font-family: "Fraunces", serif;
   color: var(--ink-900);
 }
 
+.input-section h3 {
+  font-size: 1.04rem;
+}
+
 .result-section h3 {
   font-size: 1.1rem;
+}
+
+.input-section {
+  border: 1px solid #dce8e2;
+  border-radius: 14px;
+  padding: 0.85rem;
+  background: #ffffff;
+  display: grid;
+  gap: 0.75rem;
+}
+
+.section-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.7rem;
+}
+
+.field-group {
+  display: grid;
+  gap: 0.35rem;
+}
+
+.field-group.wide {
+  grid-column: 1 / -1;
 }
 
 label,
@@ -89,11 +128,17 @@ select {
   width: 100%;
   border: 1px solid var(--stroke);
   border-radius: 12px;
-  padding: 0.62rem 0.72rem;
+  padding: 0.68rem 0.78rem;
   font: inherit;
   color: var(--ink-900);
   background: #ffffff;
   transition: border-color 120ms ease, box-shadow 120ms ease;
+}
+
+textarea {
+  min-height: 90px;
+  resize: vertical;
+  line-height: 1.5;
 }
 
 input:focus,
@@ -104,21 +149,10 @@ select:focus {
   box-shadow: 0 0 0 3px rgba(21, 128, 124, 0.12);
 }
 
-.row-fields {
-  display: grid;
-  gap: 0.65rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
-.action-row {
-  display: flex;
-  gap: 0.6rem;
-}
-
 button {
   border: none;
   border-radius: 999px;
-  padding: 0.58rem 1rem;
+  padding: 0.62rem 1.04rem;
   background: linear-gradient(120deg, var(--teal-600), var(--teal-500));
   color: #fbfffe;
   font-weight: 700;
@@ -259,6 +293,13 @@ button:disabled {
   stroke-width: 3;
 }
 
+.graph-edge.running {
+  stroke: var(--teal-600);
+  stroke-width: 3;
+  stroke-dasharray: 8 4;
+  animation: edge-flow 1.1s linear infinite;
+}
+
 .graph-node {
   fill: #ffffff;
   stroke: #c2d8cf;
@@ -270,6 +311,13 @@ button:disabled {
   stroke: var(--orange-500);
 }
 
+.graph-node.running {
+  fill: #ecfff4;
+  stroke: var(--teal-600);
+  stroke-width: 3;
+  animation: node-pulse 1.05s ease-in-out infinite;
+}
+
 .graph-node-label {
   font-size: 0.72rem;
   fill: var(--ink-800);
@@ -278,17 +326,41 @@ button:disabled {
 
 .trace-list {
   margin: 0;
-  padding: 0 0 0 1.15rem;
+  padding: 0;
   display: grid;
-  gap: 0.44rem;
+  gap: 0.5rem;
+  list-style: none;
 }
 
-.trace-list li {
+.trace-item {
+  border: 1px solid #d5e3dc;
+  border-radius: 10px;
+  padding: 0.52rem 0.62rem;
   color: var(--ink-700);
+  background: #ffffff;
+  display: grid;
+  gap: 0.15rem;
 }
 
-.trace-list span {
-  margin-left: 0.4rem;
+.trace-item.done {
+  background: #f5fbf8;
+}
+
+.trace-item.current {
+  border-color: #7bb59e;
+  background: #eafaf2;
+}
+
+.trace-item.pending {
+  opacity: 0.75;
+}
+
+.trace-item strong {
+  font-size: 0.86rem;
+}
+
+.trace-item span {
+  font-size: 0.85rem;
 }
 
 @keyframes reveal-down {
@@ -313,19 +385,43 @@ button:disabled {
   }
 }
 
+@keyframes node-pulse {
+  0% {
+    filter: drop-shadow(0 0 0 rgba(26, 123, 116, 0.06));
+  }
+  50% {
+    filter: drop-shadow(0 0 7px rgba(26, 123, 116, 0.34));
+  }
+  100% {
+    filter: drop-shadow(0 0 0 rgba(26, 123, 116, 0.06));
+  }
+}
+
+@keyframes edge-flow {
+  to {
+    stroke-dashoffset: -24;
+  }
+}
+
+@media (max-width: 1320px) {
+  .layout-grid {
+    grid-template-columns: minmax(410px, 0.96fr) minmax(0, 1.2fr);
+  }
+}
+
 @media (max-width: 1120px) {
   .layout-grid {
     grid-template-columns: 1fr;
-  }
-
-  .control-panel {
-    max-height: none;
   }
 
   .control-panel,
   .results-panel,
   .graph-panel {
     border-radius: 14px;
+  }
+
+  .section-grid {
+    grid-template-columns: 1fr;
   }
 
   .graph-canvas svg {

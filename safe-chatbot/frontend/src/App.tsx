@@ -51,6 +51,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [guardrailsStatus, setGuardrailsStatus] = useState<Record<string, unknown> | null>(null);
   const [error, setError] = useState('');
+  const [guardrailsAiEnabled, setGuardrailsAiEnabled] = useState(true);
+  const [nemoEnabled, setNemoEnabled] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
   const abortRef = useRef<AbortController | null>(null);
 
@@ -142,6 +144,8 @@ export default function App() {
         session_id: convId,
         history,
         provider,
+        guardrails_ai_enabled: guardrailsAiEnabled,
+        nemo_enabled: nemoEnabled,
       });
 
       const botMsg: Message = {
@@ -206,6 +210,10 @@ export default function App() {
           provider={provider}
           onProviderChange={p => { setProvider(p); }}
           guardrailsStatus={guardrailsStatus}
+          guardrailsAiEnabled={guardrailsAiEnabled}
+          nemoEnabled={nemoEnabled}
+          onToggleGuardrailsAi={setGuardrailsAiEnabled}
+          onToggleNemo={setNemoEnabled}
         />
 
         {/* ── Main chat area ────────────────────────────────────────────── */}

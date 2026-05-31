@@ -1,0 +1,19 @@
+[project]
+name = "prompt-eval-system"
+version = "0.1.0"
+description = "Prompt Evaluation System – score LLM outputs against expected answers"
+requires-python = ">=3.11"
+dependencies = [
+    "langchain>=0.3.12",
+    "langchain-openai>=0.2.12",
+    "langchain-anthropic>=0.3.15",
+    "langchain-google-genai>=2.1.5",
+    "deepeval>=2.0.0",
+    "ragas>=0.2.0",
+    "pydantic>=2.10",
+    "pydantic-settings>=2.6.1",
+    "python-dotenv>=1.0.1",
+    "streamlit>=1.40",
+    "pandas>=2.2",
+    "plotly>=5.24",
+]

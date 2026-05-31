@@ -77,12 +77,22 @@ class GuardrailsService:
             except Exception as exc:
                 print(f"[GuardrailsService] NeMo init failed ({exc}); running without NeMo.")
 
-    async def process(self, message: str, history: list[dict[str, str]]) -> tuple[str, GuardrailsInfo]:
-        grails_ai = GuardrailsAIInfo(active=self._grails_ai_active)
-        nemo = NemoInfo(active=self._nemo_active)
+    async def process(
+        self,
+        message: str,
+        history: list[dict[str, str]],
+        *,
+        guardrails_ai_enabled: bool = True,
+        nemo_enabled: bool = True,
+    ) -> tuple[str, GuardrailsInfo]:
+        use_grails = self._grails_ai_active and guardrails_ai_enabled
+        use_nemo = self._nemo_active and nemo_enabled
+
+        grails_ai = GuardrailsAIInfo(active=use_grails)
+        nemo = NemoInfo(active=use_nemo)
 
         # Layer 1: Guardrails AI Input Guard
-        if self._grails_ai_active and self._input_guard is not None:
+        if use_grails and self._input_guard is not None:
             passed, _, error_msg = validate_text(self._input_guard, message)
             grails_ai.input_passed = passed
             grails_ai.input_blocked = not passed
@@ -95,12 +105,18 @@ class GuardrailsService:
                 )
 
         # Layer 2: NeMo Input + Output Rails
-        if self._nemo_active and self._rails is not None:
+        if use_nemo and self._rails is not None:
             nemo.input_checked = True
             msgs = [*history, {"role": "user", "content": message}]
             try:
-                result: dict[str, str] = await self._rails.generate_async(messages=msgs)
-                nemo_response = result.get("content", "")
+                result = await self._rails.generate_async(messages=msgs)
+                # NeMo returns either a dict {"role": ..., "content": ...} or a string
+                if isinstance(result, dict):
+                    nemo_response = result.get("content", "")
+                elif isinstance(result, str):
+                    nemo_response = result
+                else:
+                    nemo_response = str(result)
             except Exception as exc:
                 nemo_response = f"Error generating response: {exc}"
             nemo.output_checked = True
@@ -113,19 +129,28 @@ class GuardrailsService:
                     input_blocked=True, block_reason=nemo_response,
                     guardrails_ai=grails_ai, nemo=nemo,
                 )
-            response = nemo_response
+            # If NeMo returned empty/blank, fall through to direct LLM call
+            if nemo_response.strip():
+                response = nemo_response
+            else:
+                response = await self._call_llm_directly(message, history)
         else:
             response = await self._call_llm_directly(message, history)
 
         # Layer 4: Guardrails AI Output Guard
         output_filtered = False
-        if self._grails_ai_active and self._output_guard is not None:
-            passed, fixed, _ = validate_text(self._output_guard, response)
+        if use_grails and self._output_guard is not None and response.strip():
+            passed, fixed, error_msg = validate_text(self._output_guard, response)
             grails_ai.output_passed = passed
             if not passed:
-                response = "I generated a response but it was too short to be useful. Please try again."
+                # Only override if the response is truly empty/short;
+                # otherwise keep the original response with a note.
+                if len(response.strip()) < 5:
+                    response = "I generated a response but it was too short to be useful. Please try again."
+                # If it failed for another reason (e.g., PII) but has no fix, keep response
                 output_filtered = True
                 grails_ai.output_filtered = True
+                grails_ai.error_message = error_msg
             elif fixed != response:
                 response = fixed
                 output_filtered = True
