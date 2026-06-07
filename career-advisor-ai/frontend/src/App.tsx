@@ -19,6 +19,27 @@ function splitCSV(input: string): string[] {
     .filter((item) => item.length > 0);
 }
 
+function getResearchMode(result: DeepResearchResponse): { label: string; tone: string; detail: string } {
+  const mode = result.metadata?.mode;
+  const status = result.metadata?.status ?? "";
+
+  if (mode === "tavily-live") {
+    return { label: "Live Tavily", tone: "live", detail: "Web results are being used." };
+  }
+  if (mode === "deep-agent") {
+    return { label: "Deep Agent", tone: "agent", detail: "Deep multi-agent research is active." };
+  }
+  if (mode === "local-fallback" || !result.used_deep_agent) {
+    return {
+      label: "Local Fallback",
+      tone: "fallback",
+      detail: status || "Using local knowledge base due to unavailable deep research runtime.",
+    };
+  }
+
+  return { label: "Unknown Mode", tone: "unknown", detail: status || "No mode metadata returned." };
+}
+
 function App() {
   const [sessionId, setSessionId] = useState(`session-${Math.floor(Date.now() / 1000)}`);
 
@@ -358,6 +379,24 @@ function App() {
           {analysis && (
             <>
               <section className="result-section">
+                <h3>Runtime Signals</h3>
+                <div className="result-grid">
+                  <article className="mini-card">
+                    <h4>Model</h4>
+                    <p>{analysis.metadata.model || "unknown"}</p>
+                    <p>Provider: {analysis.metadata.provider || "unknown"}</p>
+                  </article>
+                  <article className="mini-card">
+                    <h4>Data Source</h4>
+                    <p>
+                      Job matching: {analysis.metadata.job_data_source === "tavily-live" ? "Live Web" : "Local KB"}
+                    </p>
+                    <p>Recommendations: {analysis.metadata.recommendation_mode || "default"}</p>
+                  </article>
+                </div>
+              </section>
+
+              <section className="result-section">
                 <h3>Profile Summary</h3>
                 <p>{analysis.profile_summary}</p>
               </section>
@@ -372,6 +411,7 @@ function App() {
                         Confidence: <strong>{Math.round(item.confidence_score * 100)}%</strong>
                       </p>
                       <p>{item.market_outlook}</p>
+                      <p>{item.rationale[0]}</p>
                       <p>Matching: {item.matching_skills.join(", ") || "None"}</p>
                       <p>Missing: {item.missing_skills.join(", ") || "None"}</p>
                     </article>
@@ -389,8 +429,18 @@ function App() {
                         {item.company} | {item.location}
                       </p>
                       <p>
+                        Source: <strong>{item.source === "tavily-live" ? "Live Web" : "Local Sample KB"}</strong>
+                      </p>
+                      <p>
                         Match Score: <strong>{Math.round(item.match_score * 100)}%</strong>
                       </p>
+                      {item.job_url && (
+                        <p>
+                          <a href={item.job_url} target="_blank" rel="noreferrer">
+                            Open listing
+                          </a>
+                        </p>
+                      )}
                       <p>Missing: {item.missing_skills.join(", ") || "None"}</p>
                     </article>
                   ))}
@@ -479,9 +529,12 @@ function App() {
             <section className="result-section">
               <h3>Deep Research</h3>
               <article className="mini-card">
-                <p>
-                  Mode: {deepResearchResult.used_deep_agent ? "Deep Agent" : "Fallback Local Retrieval"}
-                </p>
+                <div className="mode-row">
+                  <span className={`mode-badge ${getResearchMode(deepResearchResult).tone}`}>
+                    {getResearchMode(deepResearchResult).label}
+                  </span>
+                  <span className="mode-detail">{getResearchMode(deepResearchResult).detail}</span>
+                </div>
                 <p className="prelike">{deepResearchResult.summary}</p>
                 {deepResearchResult.sources.length > 0 && (
                   <ul>

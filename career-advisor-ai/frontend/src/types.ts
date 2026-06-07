@@ -58,6 +58,8 @@ export interface JobMatch {
   match_score: number;
   rationale: string[];
   missing_skills: string[];
+  job_url?: string | null;
+  source: string;
 }
 
 export interface SkillGap {

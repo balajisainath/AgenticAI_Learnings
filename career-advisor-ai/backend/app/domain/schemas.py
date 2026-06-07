@@ -80,6 +80,8 @@ class JobMatch(BaseModel):
     match_score: float = Field(..., ge=0.0, le=1.0)
     rationale: list[str] = Field(default_factory=list)
     missing_skills: list[str] = Field(default_factory=list)
+    job_url: str | None = None
+    source: str = "local-kb"
 
 
 class SkillGap(BaseModel):

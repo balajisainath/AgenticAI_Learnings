@@ -43,10 +43,10 @@ def _score_case(
         try:
             metric = _get_metric(metric_name, settings)
             metric.measure(test_case)
-            scores[metric_name] = round(metric.score, 4)
-        except Exception as e:
+            score = metric.score if metric.score is not None else 0.0
+            scores[metric_name] = round(float(score), 4)
+        except Exception:
             scores[metric_name] = 0.0
-            scores[f"{metric_name}_error"] = str(e)[:100]
 
     return scores
 

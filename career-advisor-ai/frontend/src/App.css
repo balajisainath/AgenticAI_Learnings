@@ -254,6 +254,47 @@ button:disabled {
   padding-left: 1.05rem;
 }
 
+.mode-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.mode-badge {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.62rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  border: 1px solid transparent;
+}
+
+.mode-badge.live {
+  background: #e9fff4;
+  color: #0e6d4a;
+  border-color: #95dfbc;
+}
+
+.mode-badge.agent {
+  background: #eef7ff;
+  color: #0f4f85;
+  border-color: #9ac7ef;
+}
+
+.mode-badge.fallback,
+.mode-badge.unknown {
+  background: #fff5eb;
+  color: #8c4b13;
+  border-color: #f2c99f;
+}
+
+.mode-detail {
+  font-size: 0.84rem;
+  color: var(--ink-600);
+}
+
 .prelike {
   white-space: pre-wrap;
 }

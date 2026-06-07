@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 import re
 from collections import Counter
 from typing import Any, TypedDict
@@ -121,8 +123,329 @@ class CareerAdvisorWorkflow:
         self.settings = settings
         self.model = build_chat_model(settings)
         self.knowledge_base = CareerKnowledgeBase()
+        self.skill_vocabulary = self._build_skill_vocabulary()
         self.session_memory: dict[str, list[str]] = {}
         self.graph = self._build_graph()
+
+    def _build_skill_vocabulary(self) -> set[str]:
+        skills: set[str] = set()
+        for blueprint in ROLE_BLUEPRINTS:
+            skills.update(item.strip().lower() for item in blueprint.get("skills", []))
+
+        for job in self.knowledge_base.job_posts():
+            skills.update(item.strip().lower() for item in job.metadata.get("required_skills", []))
+
+        return {item for item in skills if item}
+
+    def _extract_resume_skills(self, resume_text: str) -> list[str]:
+        if not resume_text.strip():
+            return []
+
+        resume_l = resume_text.lower()
+        extracted = [skill for skill in self.skill_vocabulary if skill in resume_l]
+        return _normalize_terms(extracted)
+
+    def _role_evidence_score(self, role_name: str, role_skills: set[str], state: WorkflowState) -> float:
+        contexts = state.get("retrieved_context", [])
+        if not contexts:
+            return 0.0
+
+        role_l = role_name.lower()
+        role_tokens = {token for token in re.findall(r"[a-z0-9]+", role_l) if len(token) > 2}
+
+        role_hits = 0
+        skill_hits = 0
+
+        for item in contexts:
+            text = f"{item.get('title', '')} {item.get('snippet', '')}".lower()
+            if role_l in text or any(token in text for token in role_tokens):
+                role_hits += 1
+            if any(skill in text for skill in role_skills):
+                skill_hits += 1
+
+        score = (0.65 * (role_hits / max(len(contexts), 1))) + (0.35 * (skill_hits / max(len(contexts), 1)))
+        return round(min(1.0, score), 3)
+
+    def _build_market_outlook(
+        self,
+        role_name: str,
+        evidence_score: float,
+        skill_fit: float,
+        missing_skills: list[str],
+        preferred_locations: list[str],
+    ) -> str:
+        if evidence_score >= 0.66:
+            demand = "Current retrieval shows strong role demand signals"
+        elif evidence_score >= 0.35:
+            demand = "Current retrieval shows moderate role demand signals"
+        else:
+            demand = "Current retrieval has limited direct demand signals"
+
+        fit_line = f"profile fit is {round(skill_fit * 100)}% based on skill overlap"
+        location_line = f" in {preferred_locations[0]}" if preferred_locations else ""
+        gap_line = (
+            f". Priority upskill areas: {', '.join(missing_skills[:2])}."
+            if missing_skills
+            else "."
+        )
+        return f"{demand} for {role_name}{location_line}; {fit_line}{gap_line}"
+
+    def _infer_location_from_text(self, text: str, preferred_locations: list[str]) -> str:
+        text_l = text.lower()
+        for location in preferred_locations:
+            if location.lower() in text_l:
+                return location
+
+        known = [
+            "remote",
+            "hybrid",
+            "onsite",
+            "bengaluru",
+            "bangalore",
+            "hyderabad",
+            "pune",
+            "mumbai",
+            "chennai",
+            "delhi",
+            "india",
+        ]
+        for token in known:
+            if token in text_l:
+                return token.title()
+        return "Not specified"
+
+    def _fetch_live_job_matches(self, state: WorkflowState) -> list[dict[str, Any]]:
+        if not self.settings.tavily_api_key:
+            return []
+
+        try:
+            from tavily import TavilyClient  # type: ignore
+        except Exception:
+            return []
+
+        profile = state.get("profile", {})
+        skills = set(state.get("normalized_skills", []))
+        targets = state.get("normalized_targets", [])
+        preferred_locations = [str(loc).strip() for loc in profile.get("preferred_locations", []) if str(loc).strip()]
+
+        role_hint = ", ".join(targets[:2]) or str(profile.get("current_role", "AI engineer"))
+        location_hint = ", ".join(preferred_locations[:2]) or "India"
+        query = (
+            f"Latest hiring openings for {role_hint} roles in {location_hint}. "
+            "Include role title, company, key skills, and location."
+        )
+
+        try:
+            result = TavilyClient(api_key=self.settings.tavily_api_key).search(
+                query=query,
+                max_results=10,
+                topic="general",
+            )
+        except Exception:
+            return []
+
+        rows = result.get("results", []) if isinstance(result, dict) else []
+        if not rows:
+            return []
+
+        matches: list[dict[str, Any]] = []
+        seen_urls: set[str] = set()
+        target_tokens = {
+            token
+            for target in targets
+            for token in re.findall(r"[a-z0-9]+", target)
+            if len(token) > 2
+        }
+
+        for row in rows:
+            title_raw = str(row.get("title", "")).strip()
+            url = str(row.get("url", "")).strip()
+            snippet = str(row.get("content", "")).strip()
+            if not title_raw:
+                continue
+            if url and url in seen_urls:
+                continue
+            if url:
+                seen_urls.add(url)
+
+            text_blob = f"{title_raw} {snippet}".lower()
+            title = re.split(r"\s[|\-]\s", title_raw, maxsplit=1)[0].strip() or title_raw
+
+            company = "Web Listing"
+            parts = re.split(r"\bat\b", title_raw, flags=re.IGNORECASE)
+            if len(parts) > 1:
+                candidate = re.split(r"[|\-]", parts[1], maxsplit=1)[0].strip()
+                if candidate:
+                    company = candidate
+
+            required_skills = {skill for skill in self.skill_vocabulary if skill in text_blob}
+            overlap = sorted(skills & required_skills)
+            missing = sorted(required_skills - skills)
+
+            role_phrase_bonus = 0.1 if any(target in text_blob for target in targets) else 0.0
+            role_token_overlap = len(target_tokens & set(re.findall(r"[a-z0-9]+", text_blob))) / max(
+                len(target_tokens),
+                1,
+            )
+            role_relevance = max(role_phrase_bonus, min(0.25, role_token_overlap * 0.35))
+
+            skill_score = len(overlap) / max(len(required_skills), 3)
+            market_signal_bonus = 0.05 if any(token in text_blob for token in ["hiring", "job", "career", "opening"]) else 0.0
+
+            # Keep live candidates even when snippets are sparse on explicit skills.
+            match_score = min(0.96, 0.2 + (0.55 * skill_score) + role_relevance + market_signal_bonus)
+            if match_score < 0.18:
+                continue
+
+            stable_id_source = url or title_raw
+            job_id = f"live-{hashlib.sha1(stable_id_source.encode('utf-8')).hexdigest()[:10]}"
+
+            matches.append(
+                {
+                    "job_id": job_id,
+                    "title": title,
+                    "company": company,
+                    "location": self._infer_location_from_text(text_blob, preferred_locations),
+                    "match_score": round(match_score, 2),
+                    "rationale": [
+                        f"Live web listing evidence from Tavily query for '{role_hint}'.",
+                        f"Matched skills: {', '.join(overlap[:5]) or 'Limited direct overlap in snippet'}.",
+                    ],
+                    "missing_skills": missing[:5],
+                    "job_url": url or None,
+                    "source": "tavily-live",
+                }
+            )
+
+        matches.sort(key=lambda item: item["match_score"], reverse=True)
+        return matches[:5]
+
+    def _llm_profile_summary(
+        self,
+        profile: dict[str, Any],
+        normalized_skills: list[str],
+        normalized_interests: list[str],
+        resume_text: str,
+    ) -> str | None:
+        if not self.model:
+            return None
+
+        resume_excerpt = resume_text[:1200] if resume_text else "No resume text provided."
+        user_prompt = (
+            "Create a concise profile summary for career advisory use.\n"
+            "Constraints:\n"
+            "- 2 to 3 sentences\n"
+            "- Mention strengths, focus areas, and likely trajectory\n"
+            "- Do not mention protected traits\n"
+            "- Ground summary in profile and resume evidence only\n\n"
+            f"Profile data: {profile}\n"
+            f"Normalized skills: {normalized_skills}\n"
+            f"Normalized interests: {normalized_interests}\n"
+            f"Resume excerpt: {resume_excerpt}"
+        )
+
+        response = self.model.invoke(
+            [
+                SystemMessage(content="You are a careful career analysis assistant."),
+                HumanMessage(content=user_prompt),
+            ]
+        )
+        text = response.content if isinstance(response.content, str) else str(response.content)
+        cleaned = text.strip()
+        return cleaned or None
+
+    def _llm_resume_analysis(
+        self,
+        profile: dict[str, Any],
+        resume_text: str,
+        recommendations: list[dict[str, Any]],
+        skill_gaps: list[dict[str, Any]],
+        retrieved_context: list[dict[str, Any]],
+    ) -> dict[str, Any] | None:
+        if not self.model:
+            return None
+
+        prompt = (
+            "Analyze the resume for career readiness and return STRICT JSON only.\n"
+            "JSON schema:\n"
+            "{\n"
+            '  "overall_score": float between 0 and 1,\n'
+            '  "strengths": [string],\n'
+            '  "issues": [{"issue": string, "severity": "low|medium|high", "suggestion": string}],\n'
+            '  "rewritten_summary": string\n'
+            "}\n"
+            "Rules:\n"
+            "- Use evidence from resume text and role recommendations\n"
+            "- Keep strengths and issues practical and specific\n"
+            "- 3-6 strengths, 3-8 issues\n"
+            "- Do not wrap output in markdown fences\n\n"
+            f"Profile: {profile}\n"
+            f"Top recommendations: {recommendations[:3]}\n"
+            f"Top skill gaps: {skill_gaps[:6]}\n"
+            f"Retrieved context: {retrieved_context[:4]}\n"
+            f"Resume text:\n{resume_text[:5000]}"
+        )
+
+        response = self.model.invoke(
+            [
+                SystemMessage(content="You are a strict JSON resume evaluator."),
+                HumanMessage(content=prompt),
+            ]
+        )
+        raw = response.content if isinstance(response.content, str) else str(response.content)
+        cleaned = raw.strip().strip("`")
+
+        try:
+            parsed = json.loads(cleaned)
+        except json.JSONDecodeError:
+            match = re.search(r"\{.*\}", cleaned, flags=re.DOTALL)
+            if not match:
+                return None
+            try:
+                parsed = json.loads(match.group(0))
+            except json.JSONDecodeError:
+                return None
+
+        if not isinstance(parsed, dict):
+            return None
+
+        overall_score = parsed.get("overall_score")
+        strengths = parsed.get("strengths", [])
+        issues = parsed.get("issues", [])
+        rewritten_summary = parsed.get("rewritten_summary", "")
+
+        try:
+            overall_score = float(overall_score)
+        except (TypeError, ValueError):
+            return None
+
+        if not isinstance(strengths, list) or not isinstance(issues, list) or not isinstance(rewritten_summary, str):
+            return None
+
+        normalized_issues: list[dict[str, str]] = []
+        for item in issues:
+            if not isinstance(item, dict):
+                continue
+            issue = str(item.get("issue", "")).strip()
+            severity = str(item.get("severity", "medium")).strip().lower()
+            suggestion = str(item.get("suggestion", "")).strip()
+            if not issue or not suggestion:
+                continue
+            if severity not in {"low", "medium", "high"}:
+                severity = "medium"
+            normalized_issues.append({"issue": issue, "severity": severity, "suggestion": suggestion})
+
+        normalized_strengths = [str(item).strip() for item in strengths if str(item).strip()]
+        rewritten_summary = rewritten_summary.strip()
+        if not normalized_strengths or not normalized_issues or not rewritten_summary:
+            return None
+
+        return {
+            "overall_score": max(0.0, min(1.0, round(overall_score, 2))),
+            "strengths": normalized_strengths[:8],
+            "issues": normalized_issues[:10],
+            "rewritten_summary": rewritten_summary,
+        }
 
     def run(self, request: CareerAnalysisRequest) -> CareerAnalysisResponse:
         session_id = request.session_id or f"career-{uuid4().hex[:10]}"
@@ -246,16 +569,23 @@ class CareerAdvisorWorkflow:
 
     def _profile_analysis_agent(self, state: WorkflowState) -> WorkflowState:
         profile = state["profile"]
-        normalized_skills = _normalize_terms(profile.get("skills", []))
+        resume_skills = self._extract_resume_skills(state.get("resume_text", ""))
+        normalized_skills = _normalize_terms([*profile.get("skills", []), *resume_skills])
         normalized_interests = _normalize_terms(profile.get("interests", []))
         normalized_targets = _normalize_terms(profile.get("target_roles", []))
 
-        summary = (
+        fallback_summary = (
             f"{profile.get('current_role', 'Professional')} profile with "
             f"{profile.get('years_experience', 0)} years experience. "
             f"Top skills: {', '.join(profile.get('skills', [])[:6]) or 'Not provided'}. "
             f"Career interests: {', '.join(profile.get('interests', [])[:4]) or 'Not provided'}."
         )
+        summary = self._llm_profile_summary(
+            profile,
+            normalized_skills,
+            normalized_interests,
+            state.get("resume_text", ""),
+        ) or fallback_summary
 
         return {
             "normalized_skills": normalized_skills,
@@ -266,8 +596,8 @@ class CareerAdvisorWorkflow:
                 state,
                 "profile_analysis_agent",
                 (
-                    f"Analyzed profile with {len(normalized_skills)} normalized skills and "
-                    f"{len(normalized_interests)} interests"
+                    f"Analyzed profile with {len(normalized_skills)} normalized skills "
+                    f"({len(resume_skills)} extracted from resume) and {len(normalized_interests)} interests"
                 ),
             ),
         }
@@ -309,6 +639,9 @@ class CareerAdvisorWorkflow:
         skills = set(state.get("normalized_skills", []))
         interests = set(state.get("normalized_interests", []))
         targets = set(state.get("normalized_targets", []))
+        preferred_locations = [
+            str(loc).strip() for loc in state.get("profile", {}).get("preferred_locations", []) if str(loc).strip()
+        ]
         years = float(state["profile"].get("years_experience", 0.0))
 
         ranked: list[tuple[float, dict[str, Any], list[str], list[str]]] = []
@@ -320,6 +653,7 @@ class CareerAdvisorWorkflow:
 
             skill_fit = len(matching) / max(len(role_skills), 1)
             interest_fit = len(interests & role_interests) / max(len(role_interests), 1)
+            evidence_fit = self._role_evidence_score(blueprint["role"], role_skills, state)
 
             min_exp, max_exp = blueprint["experience"]
             if years < min_exp:
@@ -329,8 +663,17 @@ class CareerAdvisorWorkflow:
             else:
                 exp_fit = 1.0
 
-            target_bonus = 0.08 if any(target in blueprint["role"].lower() for target in targets) else 0.0
-            confidence = min(0.98, (0.55 * skill_fit) + (0.25 * interest_fit) + (0.2 * exp_fit) + target_bonus)
+            exact_target_bonus = 0.12 if blueprint["role"].lower() in targets else 0.0
+            partial_target_bonus = 0.05 if any(target in blueprint["role"].lower() for target in targets) else 0.0
+            target_bonus = max(exact_target_bonus, partial_target_bonus)
+            confidence = min(
+                0.98,
+                (0.45 * skill_fit)
+                + (0.2 * interest_fit)
+                + (0.15 * exp_fit)
+                + (0.2 * evidence_fit)
+                + target_bonus,
+            )
             ranked.append((confidence, blueprint, matching, missing))
 
         ranked.sort(key=lambda item: item[0], reverse=True)
@@ -354,7 +697,13 @@ class CareerAdvisorWorkflow:
                     "role": blueprint["role"],
                     "confidence_score": round(confidence, 2),
                     "rationale": rationale,
-                    "market_outlook": blueprint["market_outlook"],
+                    "market_outlook": self._build_market_outlook(
+                        blueprint["role"],
+                        evidence_score=self._role_evidence_score(blueprint["role"], role_skills, state),
+                        skill_fit=skill_fit,
+                        missing_skills=missing,
+                        preferred_locations=preferred_locations,
+                    ),
                     "matching_skills": matching,
                     "missing_skills": missing[:5],
                 }
@@ -376,6 +725,10 @@ class CareerAdvisorWorkflow:
         return {
             "career_recommendations": recommendations,
             "skill_gaps": skill_gaps,
+            "metadata": {
+                **state.get("metadata", {}),
+                "recommendation_mode": "evidence-weighted",
+            },
             "trace": _append_trace(
                 state,
                 "career_recommendation_agent",
@@ -384,6 +737,21 @@ class CareerAdvisorWorkflow:
         }
 
     def _job_matching_agent(self, state: WorkflowState) -> WorkflowState:
+        live_matches = self._fetch_live_job_matches(state)
+        if live_matches:
+            return {
+                "job_matches": live_matches,
+                "metadata": {
+                    **state.get("metadata", {}),
+                    "job_data_source": "tavily-live",
+                },
+                "trace": _append_trace(
+                    state,
+                    "job_matching_agent",
+                    f"Matched {len(live_matches)} jobs using live Tavily web results",
+                ),
+            }
+
         skills = set(state.get("normalized_skills", []))
         target_roles = set(state.get("normalized_targets", []))
 
@@ -407,10 +775,13 @@ class CareerAdvisorWorkflow:
                     "location": str(job.metadata.get("location", "Not specified")),
                     "match_score": round(match_score, 2),
                     "rationale": [
+                        "Curated sample listing from local knowledge base.",
                         f"Matched skills: {', '.join(overlap[:5]) or 'No direct overlap'}.",
                         f"Role requires {len(required)} core skill(s).",
                     ],
                     "missing_skills": missing[:5],
+                    "job_url": job.url,
+                    "source": "local-kb",
                 }
             )
 
@@ -418,6 +789,10 @@ class CareerAdvisorWorkflow:
 
         return {
             "job_matches": matches[:5],
+            "metadata": {
+                **state.get("metadata", {}),
+                "job_data_source": "local-kb",
+            },
             "trace": _append_trace(
                 state,
                 "job_matching_agent",
@@ -498,6 +873,23 @@ class CareerAdvisorWorkflow:
                     state,
                     "resume_analysis_agent",
                     "Skipped deep resume analysis because resume text was empty",
+                ),
+            }
+
+        llm_analysis = self._llm_resume_analysis(
+            profile=profile,
+            resume_text=resume,
+            recommendations=state.get("career_recommendations", []),
+            skill_gaps=state.get("skill_gaps", []),
+            retrieved_context=state.get("retrieved_context", []),
+        )
+        if llm_analysis is not None:
+            return {
+                "resume_analysis": llm_analysis,
+                "trace": _append_trace(
+                    state,
+                    "resume_analysis_agent",
+                    "Generated model-based resume analysis grounded in resume and role context",
                 ),
             }
 
@@ -622,13 +1014,14 @@ class CareerAdvisorWorkflow:
 
         self.session_memory[state["session_id"]] = notes
 
-        metadata = {
+        base_metadata = {
             "provider": self.settings.normalized_provider,
             "model": self.settings.selected_model_name if self.model else "mock-llm",
             "rag_docs": str(len(state.get("retrieved_context", []))),
             "safety_mode": "enabled",
             "deep_agent_support": "enabled" if self.settings.deep_agent_enabled else "disabled",
         }
+        metadata = {**base_metadata, **state.get("metadata", {})}
 
         return {
             "memory_notes": notes,

@@ -107,9 +107,52 @@ class DeepAgentService:
 
         return local_knowledge_search
 
+    def _tavily_research(self, query: str, session_id: str | None) -> dict[str, Any] | None:
+        if not self.settings.tavily_api_key:
+            return None
+
+        try:
+            from tavily import TavilyClient  # type: ignore
+
+            result = TavilyClient(api_key=self.settings.tavily_api_key).search(
+                query=query,
+                max_results=6,
+                topic="general",
+            )
+        except Exception as exc:
+            self._agent_error = f"tavily research failed: {exc}"
+            return None
+
+        items = result.get("results", []) if isinstance(result, dict) else []
+        if not items:
+            return None
+
+        lines = [
+            "Live market snapshot (Tavily):",
+            *[
+                f"- {item.get('title', 'Untitled')}: {str(item.get('content', '')).strip()[:180]}"
+                for item in items[:5]
+            ],
+        ]
+        sources = [str(item.get("url", "")).strip() for item in items if str(item.get("url", "")).strip()]
+
+        return {
+            "summary": "\n".join(lines),
+            "sources": sources,
+            "used_deep_agent": True,
+            "metadata": {
+                "session_id": session_id or "none",
+                "mode": "tavily-live",
+            },
+        }
+
     def research(self, query: str, session_id: str | None = None) -> dict[str, Any]:
         agent = self._get_agent()
         if agent is None:
+            tavily_result = self._tavily_research(query, session_id)
+            if tavily_result is not None:
+                return tavily_result
+
             docs = self.knowledge_base.retrieve(query, limit=4)
             summary = "\n".join(
                 [
@@ -124,6 +167,7 @@ class DeepAgentService:
                 "used_deep_agent": False,
                 "metadata": {
                     "session_id": session_id or "none",
+                    "mode": "local-fallback",
                     "status": self._agent_error or "fallback",
                 },
             }
